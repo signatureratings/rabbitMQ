@@ -1,17 +1,13 @@
 from flask import Flask, jsonify
 import sqlite3
-import threading
 import json
 import pika
+import threading
+import concurrent.futures
 
 
 app = Flask(__name__)
 
-
-conn = sqlite3.connect('database.sqlite')
-cursor = conn.cursor()
-cursor.execute('CREATE TABLE IF NOT EXISTS shipping (id INTEGER PRIMARY KEY, amount INTEGER, productName TEXT, quantity INTEGER, status TEXT)')
-conn.commit()
 
 
 def consumeMessage():
@@ -20,11 +16,15 @@ def consumeMessage():
         channel = connection.channel()
         channel.queue_declare(queue='shipping_queue', durable=True)
 
+        conn = sqlite3.connect('database.sqlite')
+        cursor = conn.cursor()
+        cursor.execute('CREATE TABLE IF NOT EXISTS shipping (id INTEGER PRIMARY KEY, amount INTEGER, productName TEXT, quantity INTEGER, status TEXT)')
+        conn.commit()
+
         def callback(ch, method, properties, body):
             try:
                 print(" [x] Received %r" % body)
                 shipping = json.loads(body)
-                print(shipping, properties, method)
 
                 # Insert data into SQLite database
                 cursor.execute('INSERT INTO shipping (id, amount, productName, quantity, status) VALUES (?, ?, ?, ?, ?)',
@@ -51,10 +51,18 @@ def consumeMessage():
     except Exception as e:
         print(f"Unexpected Error: {e}")
 
+def start_consuming():
+    # with concurrent.futures.ThreadPoolExecutor() as executor:
+    #     executor.submit(consumeMessage)
+    thread = threading.Thread(target=consumeMessage)
+    thread.start()
 
 @app.route('/shipping/<int:id>', methods=['GET'])
 def getShippingDetails(id):
     try:
+        print('hi')
+        conn = sqlite3.connect('database.sqlite')
+        cursor = conn.cursor()
         cursor.execute('SELECT * FROM shipping WHERE id=?', (id,))
         shipping = cursor.fetchone()
         if shipping:
@@ -69,7 +77,7 @@ if __name__ == '__main__':
     # starting the consumer in different thread or process
     # consumer_thread = threading.Thread(target=consumeMessage)
     # consumer_thread.start()
-    consumeMessage()
+    start_consuming()
 
     #starting the flask app
     app.run(debug=True, port=3002)

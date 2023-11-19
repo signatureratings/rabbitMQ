@@ -18,6 +18,10 @@ function insertPaymentDetails(id, price, productName, quantity){
     }
     catch(ex){
         console.error('Error occured here: ',ex.message);
+        if (err.code === 'SQLITE_CONSTRAINT') {
+            // Handle constraint violation (e.g., unique constraint)
+            console.error('Error: Unique constraint violation.');
+        }
     }
 }
 
@@ -48,6 +52,7 @@ let rabbitMQConnection, channel;
 
 app.get('/payment', async (req, res) => {
     // get the payment details from the database
+    console.log('api is called from consumer nodejs')
     const {id} = req.query;
     if(!id){
         return res.status(400).json({message: 'Invalid request'});
